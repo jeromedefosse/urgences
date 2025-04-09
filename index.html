@@ -2,50 +2,92 @@
 <html lang="fr">
 <head>
   <meta charset="UTF-8">
-  <title>Formulaire Traumato Urgences</title>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+  <title>Formulaire ATU - Traumatologie</title>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js">document.addEventListener("DOMContentLoaded", function () {
+  const fieldsets = document.querySelectorAll("fieldset");
+  fieldsets.forEach(fieldset => {
+    const checkboxes = fieldset.querySelectorAll("input[type='checkbox']");
+    const alertDiv = fieldset.querySelector(".alert");
+    if (!alertDiv || checkboxes.length === 0) return;
+    function updateAlert() {
+      const total = checkboxes.length;
+      const checked = fieldset.querySelectorAll("input[type='checkbox']:checked").length;
+      if (checked === total) {
+        alertDiv.textContent = "✅ Étape conforme";
+        alertDiv.style.backgroundColor = "#d4edda";
+        alertDiv.style.color = "#155724";
+        alertDiv.style.border = "1px solid #c3e6cb";
+      } else if (checked === 0) {
+        alertDiv.textContent = "⛔ Aucune case cochée";
+        alertDiv.style.backgroundColor = "#f8d7da";
+        alertDiv.style.color = "#721c24";
+        alertDiv.style.border = "1px solid #f5c6cb";
+      } else {
+        alertDiv.textContent = "⚠️ Étape partiellement remplie";
+        alertDiv.style.backgroundColor = "#fff3cd";
+        alertDiv.style.color = "#856404";
+        alertDiv.style.border = "1px solid #ffeeba";
+      }
+    }
+    checkboxes.forEach(cb => cb.addEventListener("change", updateAlert));
+    updateAlert();
+  });
+});
+</script>
 </head>
 <body>
+  <!-- En-têtes établissement / service / patient -->
+  <h2>Polyclinique Côte Basque Sud</h2>
+  <h3>Service : Urgences</h3>
+  <label>Nom du patient : <input type="text" name="nomPatient"></label><br>
+<label>Prénom du patient : <input type="text" name="prenomPatient"></label><br>
+<label>Date de naissance : <input type="date" name="dateNaissance"></label><br>
+<label>Sexe : 
+  <input type="radio" name="sexe" value="Homme"> Homme
+  <input type="radio" name="sexe" value="Femme"> Femme
+</label><br>
+  <label>Date : <input type="date" name="date" id="autoDate"></label><br>
+<script>
+  document.addEventListener("DOMContentLoaded", function () {
+    const autoDateField = document.getElementById("autoDate");
+    if (autoDateField && !autoDateField.value) {
+      const today = new Date();
+      const yyyy = today.getFullYear();
+      const mm = String(today.getMonth() + 1).padStart(2, '0');
+      const dd = String(today.getDate()).padStart(2, '0');
+      autoDateField.value = `${yyyy}-${mm}-${dd}`;
+    }
+  });
+</script>
+  <label>Numéro de dossier : <input type="text" name="numDossier"></label><br>
+
+  <fieldset>
+    <legend>Éléments administratifs à l'admission</legend>
+    <ul>
+      <li><input type="checkbox"> Identité vérifiée et conforme (Identitovigilance)</li>
+      <li><input type="checkbox"> Recueil de données administratives complet</li>
+      <li><input type="checkbox"> Contexte et motif d’admission renseignés</li>
+      <li><input type="checkbox"> Antécédents médicaux identifiés</li>
+      <li><input type="checkbox"> Ordonnances en cours disponibles</li>
+      <li><input type="checkbox"> Personne de confiance identifiée</li>
+      <li><input type="checkbox"> Directives anticipées connues le cas échéant</li>
+      <li><input type="checkbox"> Pièces justificatives administratives présentes dans le DPI</li>
+    </ul>
+    <textarea name="adminComment" placeholder="Commentaires ou anomalies administratives..." style="width:100%; height:60px;"></textarea>
+    <div class="alert" style="margin-top:10px; padding:5px; border-radius:5px; font-weight:bold;"></div>
+    <div class="alert" style="margin-top:10px; padding:5px; border-radius:5px; font-weight:bold;"></div>
+</fieldset>
 <script>
   document.addEventListener("DOMContentLoaded", function () {
     const fieldsets = document.querySelectorAll("fieldset");
-    const globalAlert = document.createElement("div");
-    globalAlert.style.margin = "20px 0";
-    globalAlert.style.padding = "10px";
-    globalAlert.style.borderRadius = "5px";
-    globalAlert.style.fontWeight = "bold";
-    globalAlert.style.textAlign = "center";
-    globalAlert.style.fontSize = "16px";
-
-    const explanationDiv = document.createElement("div");
-    explanationDiv.innerHTML = '<label>Commentaire global :<br><textarea style="width:100%; height:80px;" placeholder="Explication ou plan d\'action global si nécessaire..."></textarea></label>';
-
-    document.body.appendChild(globalAlert);
-    document.body.appendChild(explanationDiv);
-
-    function updateAllAlerts() {
-      let totalFields = 0;
-      let totalComplete = 0;
-      let totalChecked = 0;
-      let totalCheckboxes = 0;
-
-      fieldsets.forEach(fieldset => {
-        const checkboxes = fieldset.querySelectorAll("input[type='checkbox']");
+    fieldsets.forEach(fieldset => {
+      const checkboxes = fieldset.querySelectorAll("input[type='checkbox']");
+      const alertDiv = fieldset.querySelector(".alert");
+      if (!alertDiv || checkboxes.length === 0) return;
+      function updateAlert() {
+        const total = checkboxes.length;
         const checked = fieldset.querySelectorAll("input[type='checkbox']:checked").length;
-        totalCheckboxes += checkboxes.length;
-        totalChecked += checked;
-        totalFields++;
-        if (checked === checkboxes.length) totalComplete++;
-
-        const alertDiv = fieldset.querySelector("div.alert") || document.createElement("div");
-        alertDiv.className = "alert";
-        alertDiv.style.marginTop = "10px";
-        alertDiv.style.padding = "5px";
-        alertDiv.style.borderRadius = "5px";
-        alertDiv.style.fontWeight = "bold";
-        if (!fieldset.contains(alertDiv)) fieldset.appendChild(alertDiv);
-
-        if (checked === checkboxes.length) {
+        if (checked === total) {
           alertDiv.textContent = "✅ Étape conforme";
           alertDiv.style.backgroundColor = "#d4edda";
           alertDiv.style.color = "#155724";
@@ -61,105 +103,216 @@
           alertDiv.style.color = "#856404";
           alertDiv.style.border = "1px solid #ffeeba";
         }
-      });
-
-      const completionRate = Math.round((totalChecked / totalCheckboxes) * 100);
-      if (completionRate === 100) {
-        globalAlert.textContent = `🟢 Dossier complet à ${completionRate}%`;
-        globalAlert.style.backgroundColor = "#d4edda";
-        globalAlert.style.color = "#155724";
-        globalAlert.style.border = "1px solid #c3e6cb";
-      } else if (completionRate >= 60) {
-        globalAlert.textContent = `🟠 Dossier partiellement conforme (${completionRate}%)`;
-        globalAlert.style.backgroundColor = "#fff3cd";
-        globalAlert.style.color = "#856404";
-        globalAlert.style.border = "1px solid #ffeeba";
-      } else {
-        globalAlert.textContent = `🔴 Dossier incomplet (${completionRate}%)`;
-        globalAlert.style.backgroundColor = "#f8d7da";
-        globalAlert.style.color = "#721c24";
-        globalAlert.style.border = "1px solid #f5c6cb";
       }
-    }
-
-    fieldsets.forEach(fieldset => {
-      const checkboxes = fieldset.querySelectorAll("input[type='checkbox']");
-      checkboxes.forEach(cb => cb.addEventListener("change", updateAllAlerts));
+      checkboxes.forEach(cb => cb.addEventListener("change", updateAlert));
+      updateAlert();
     });
-
-    updateAllAlerts();
   });
+</script>
 
-  window.generatePDF = function () {
-    const { jsPDF } = window.jspdf;
-    const doc = new jsPDF();
-    let y = 10;
+  <fieldset>
+    <legend>Évaluation et triage IOA ou IDE</legend>
+    <ul>
+      <li><input type="checkbox"> Vérification des informations d'identitovigilance</li>
+      <li><input type="checkbox"> Intégration au dossier des ordonnances en cours</li>
+      <li><input type="checkbox"> Intégration au dossier des antécédents médicaux</li>
+      <li><input type="checkbox"> Motif d’admission documenté</li>
+      <li><input type="checkbox"> Contexte clinique précisé</li>
+      <li><input type="checkbox"> Symptômes rapportés tracés</li>
+      <li><input type="checkbox"> Évaluation clinique initiale réalisée</li>
+      <li><input type="checkbox"> Score FRENCH ou triage formel documenté</li>
+      <li><input type="checkbox"> Priorisation validée par l'IDE ou l'IOA</li>
+      <li><input type="checkbox"> Contexte et motif d'admission réévalués</li>
+      <li><input type="checkbox"> Risques identifiés et tracés (douleur, confusion, chute...)</li>
+      <li><input type="checkbox"> Plan de surveillance adapté mis en œuvre</li>
+      <li><input type="checkbox"> Information du patient assurée et tracée</li>
+    </ul>
+    <textarea name="triageComment" placeholder="Commentaires ou anomalies lors du triage..." style="width:100%; height:60px;"></textarea>
+    <div class="alert" style="margin-top:10px; padding:5px; border-radius:5px; font-weight:bold;"></div>
+</fieldset>
+<fieldset>
+    <legend>Prise en charge de la douleur</legend>
+    <ul>
+      <li><input type="checkbox"> Évaluation initiale de la douleur (EVA, EN, hétéro-évaluation)</li>
+      <li><input type="checkbox"> Traçabilité de l’intensité de la douleur dans le dossier</li>
+      <li><input type="checkbox"> Prescription antalgique adaptée au niveau de douleur</li>
+      <li><input type="checkbox"> Administration du traitement antalgique réalisée</li>
+      <li><input type="checkbox"> Réévaluation de l’efficacité du traitement réalisée</li>
+      <li><input type="checkbox"> Réévaluation tracée dans le dossier</li>
+      <li><input type="checkbox"> Adaptation du traitement si nécessaire</li>
+    </ul>
+    <textarea name="douleurComment" placeholder="Commentaires ou anomalies de PEC de la douleur..." style="width:100%; height:60px;"></textarea>
+    <div class="alert" style="margin-top:10px; padding:5px; border-radius:5px; font-weight:bold;"></div>
+</fieldset>
+<fieldset>
+    <legend>Prescriptions initiales et soins immédiats</legend>
+    <ul>
+      <li><input type="checkbox"> Prescription médicale initiale documentée</li>
+      <li><input type="checkbox"> Administration des soins réalisée selon prescription</li>
+      <li><input type="checkbox"> Surveillance infirmière mise en place après soins</li>
+      <li><input type="checkbox"> Traçabilité des actes infirmiers dans le DPI</li>
+      <li><input type="checkbox"> Ordonnances imprimées ou transmises</li>
+      <li><input type="checkbox"> Vérification de la bonne compréhension par le patient</li>
+    </ul>
+    <textarea name="prescriptionComment" placeholder="Commentaires ou anomalies relatives aux prescriptions ou soins..." style="width:100%; height:60px;"></textarea>
+    <div class="alert" style="margin-top:10px; padding:5px; border-radius:5px; font-weight:bold;"></div>
+</fieldset>
+
+      <li><input type="checkbox"> 🔹 Information claire du patient sur les décisions médicales</li>
+      <li><input type="checkbox"> 🔹 Consentement éclairé recueilli et tracé si requis</li>
+      <li><input type="checkbox"> 🔹 Examen clinique complet effectué</li>
+      <li><input type="checkbox"> 🔹 Hypothèses diagnostiques posées</li>
+      <li><input type="checkbox"> 🔹 Examens complémentaires prescrits et tracés</li>
+      <li><input type="checkbox"> 🔹 Interprétation des résultats intégrée au dossier</li>
+      <li><input type="checkbox"> 🔹 Décision médicale argumentée (PEC, hospitalisation, retour domicile...)</li>
+      <li><input type="checkbox"> 🔹 Information du patient sur la stratégie médicale</li>
+      <li><input type="checkbox"> 🔹 Traçabilité des éléments médicaux dans le DPI</li>
+    </ul>
+    <textarea name="pecMedicalComment" placeholder="Commentaires ou anomalies dans la prise en charge médicale..." style="width:100%; height:60px;"></textarea>
+    <div class="alert" style="margin-top:10px; padding:5px; border-radius:5px; font-weight:bold;"></div>
+</fieldset>
+<fieldset>
+    <legend>Vérification de la complétude du DPI</legend>
+    <ul>
+      <li><input type="checkbox"> Données administratives complètes et validées</li>
+      <li><input type="checkbox"> Fiche d’identitovigilance intégrée et conforme</li>
+      <li><input type="checkbox"> Traçabilité complète des soins infirmiers (observations, actes, évaluations)</li>
+      <li><input type="checkbox"> Traçabilité des actes médicaux (consultation, examens, prescriptions)</li>
+      <li><input type="checkbox"> Résultats des examens complémentaires intégrés</li>
+      <li><input type="checkbox"> Compte rendu médical et synthèse de sortie présents</li>
+      <li><input type="checkbox"> Consentements et informations patient intégrés</li>
+      <li><input type="checkbox"> Codages administratifs et médicaux saisis (CIM-10, GEMSA, CCMU...)</li>
+    </ul>
+    <textarea name="dpiCompletenessComment" placeholder="Commentaires sur la complétude du dossier dans le DPI..." style="width:100%; height:60px;"></textarea>
+    <div class="alert" style="margin-top:10px; padding:5px; border-radius:5px; font-weight:bold;"></div>
+</fieldset>
+<!-- Ici viendront les différents fieldsets dynamiques -->
 
-    doc.setFontSize(14);
-    doc.text("Synthèse Parcours ATU - Traumatologie", 10, y);
+  <fieldset>
+    <legend>Documents de sortie - Conformité réglementaire (Art. R.1112-2 CSP)</legend>
+    <ul>
+      <li><input type="checkbox"> Lettre de sortie ou compte rendu d'hospitalisation</li>
+      <li><input type="checkbox"> Prescription de sortie et doubles d’ordonnances</li>
+      <li><input type="checkbox"> Modalités de sortie documentées (domicile, structure, etc.)</li>
+      <li><input type="checkbox"> Fiche de liaison IDE complétée</li>
+      <li><input type="checkbox"> Consentement éclairé mentionné si requis</li>
+      <li><input type="checkbox"> Présence de tous les documents obligatoires dans le DPI</li>
+      <li><input type="checkbox"> Vérification des correspondances entre professionnels de santé</li>
+      <li><input type="checkbox"> Remise au patient des consignes écrites de sortie</li>
+      <li><input type="checkbox"> Remise au patient des RDV post-sortie si besoin</li>
+      <li><input type="checkbox"> Arrêt de travail prescrit si indiqué</li>
+      <li><input type="checkbox"> Arrêt de travail remis au patient</li>
+      <li><input type="checkbox"> Codage CIM-10 saisi dans le DPI</li>
+      <li><input type="checkbox"> Sortie administrative réalisée une fois le dossier complet</li>
+    </ul>
+    <textarea name="sortieComment" placeholder="Explication / correction / FEI si besoin..."></textarea>
+  </fieldset>
+
+  <fieldset>
+    <legend>Signature du professionnel ayant réalisé la vérification</legend>
+    <label>Nom : <input type="text" name="nomSoignant" style="width: 300px;"></label><br>
+    <label>Prénom : <input type="text" name="prenomSoignant" style="width: 300px;"></label><br>
+    <label>Fonction : <input type="text" name="fonctionSoignant" style="width: 300px;"></label><br>
+    <label>Nom du médecin référent : <input type="text" name="nomMedecin" style="width: 300px;"></label><br>
+    <label>Prénom du médecin référent : <input type="text" name="prenomMedecin" style="width: 300px;"></label><br>
+    <label>Fonction : <input type="text" name="fonctionMedecin" style="width: 300px;"></label>
+    <label>Nom : <input type="text" name="nomSoignant" style="width: 300px;"></label><br>
+    <label>Prénom : <input type="text" name="prenomSoignant" style="width: 300px;"></label><br>
+    <label>Fonction : <input type="text" name="fonctionSoignant" style="width: 300px;"></label>
+  </fieldset>
+
+  <button onclick="generatePDF()">Générer la synthèse PDF</button>
+
+  <script>
+    // Ajout au PDF : Résumé global
+    const nomSoignant = document.querySelector("input[name='nomSoignant']")?.value || "";
+    const prenomSoignant = document.querySelector("input[name='prenomSoignant']")?.value || "";
+    const fonctionSoignant = document.querySelector("input[name='fonctionSoignant']")?.value || "";
+    const globalAlert = document.getElementById("globalAlert")?.textContent || "";
+    const globalComment = document.querySelector("textarea[name='globalComment']")?.value || "";
+
+    doc.setFontSize(12);
+    doc.text("Résumé de conformité global :", 10, y); y += 7;
+    doc.setFontSize(10);
+    doc.text(globalAlert, 12, y); y += 7;
+
+    if (globalComment) {
+      const lines = doc.splitTextToSize(globalComment, 180);
+      lines.forEach(line => {
+        doc.text(line, 12, y);
+        y += 6;
+      });
+    }
     y += 10;
 
-    const nom = document.querySelector('input[name="nomPatient"]')?.value || "";
-    const date = document.querySelector('input[name="date"]')?.value || "";
-    const dossier = document.querySelector('input[name="numDossier"]')?.value || "";
+    // Signature
+    const now = new Date();
+    const horodatage = now.toLocaleString('fr-FR');
 
     doc.setFontSize(12);
-    doc.text(`Établissement : Polyclinique Côte Basque Sud`, 10, y); y += 7;
-    doc.text(`Service : Urgences`, 10, y); y += 7;
-    doc.text(`Patient : ${nom}`, 10, y); y += 7;
-    doc.text(`Date : ${date}`, 10, y); y += 7;
-    doc.text(`Numéro de dossier : ${dossier}`, 10, y); y += 10;
-
-    document.querySelectorAll("fieldset").forEach(fieldset => {
-      const legend = fieldset.querySelector("legend")?.innerText || "";
-      const checkboxes = fieldset.querySelectorAll("input[type='checkbox']");
-      const comment = fieldset.querySelector("textarea")?.value.trim();
-
-      doc.setFontSize(12);
-      doc.text(`• ${legend}`, 10, y);
-      y += 7;
-
-      checkboxes.forEach(cb => {
-        if (cb.checked) {
-          const label = cb.parentElement.innerText.trim();
-          doc.setFontSize(10);
-          doc.text(`   - ${label}`, 12, y);
-          y += 6;
-        }
-      });
-
-      if (comment) {
-        doc.setFontSize(10);
-        doc.text(`→ Commentaire : ${comment}`, 12, y);
-        y += 7;
-      }
-
-      if (y > 270) { doc.addPage(); y = 10; }
-    });
-
-    const commentaireGlobal = document.querySelector("textarea[placeholder*='plan d\'action global']")?.value || "";
-    if (commentaireGlobal) {
-      doc.setFontSize(12);
-      doc.text("Commentaire global :", 10, y); y += 6;
-      doc.setFontSize(10);
-      doc.text(commentaireGlobal, 12, y); y += 10;
-    }
-
-    const nomS = document.querySelector('input[name="nomSoignant"]')?.value || "";
-    const prenomS = document.querySelector('input[name="prenomSoignant"]')?.value || "";
-    const fonctionS = document.querySelector('input[name="fonctionSoignant"]')?.value || "";
-
-    doc.setFontSize(12);
-    doc.text("Signature du professionnel ayant réalisé la vérification :", 10, y); y += 6;
+    doc.text("Signature du professionnel vérificateur :", 10, y); y += 7;
     doc.setFontSize(10);
-    doc.text(`Nom : ${nomS}`, 12, y); y += 5;
-    doc.text(`Prénom : ${prenomS}`, 12, y); y += 5;
-    doc.text(`Fonction : ${fonctionS}`, 12, y); y += 10;
+    doc.text(`Nom : ${nomSoignant}`, 12, y); y += 6;
+    doc.text(`Prénom : ${prenomSoignant}`, 12, y); y += 6;
+    doc.text(`Fonction : ${fonctionSoignant}`, 12, y); y += 6;
+    const nomMedecin = document.querySelector("input[name='nomMedecin']")?.value || "";
+    const prenomMedecin = document.querySelector("input[name='prenomMedecin']")?.value || "";
+    const fonctionMedecin = document.querySelector("input[name='fonctionMedecin']")?.value || "";
+    doc.text(`Médecin référent : ${prenomMedecin} ${nomMedecin}`, 12, y); y += 6;
+    doc.text(`Fonction médecin : ${fonctionMedecin}`, 12, y); y += 6;
 
-    doc.save("Synthese_traumatologie.pdf");
-  };
+    // Intégration des éléments obligatoires de tri IOA/IDE
+    doc.setFontSize(12);
+    doc.text("Éléments essentiels d’évaluation IOA/IDE :", 10, y); y += 7;
+    doc.setFontSize(10);
+    doc.text("- Identitovigilance vérifiée", 12, y); y += 6;
+    doc.text("- Ordonnances et antécédents intégrés au dossier", 12, y); y += 6;
+    doc.text("- Motif d’admission, contexte et symptômes documentés", 12, y); y += 10; y += 6;
+    doc.text(`Horodatage : ${horodatage}`, 12, y); y += 10;
+    doc.text("Signature du professionnel vérificateur :", 10, y); y += 7;
+    doc.setFontSize(10);
+    doc.text(`Nom : ${nomSoignant}`, 12, y); y += 6;
+    doc.text(`Prénom : ${prenomSoignant}`, 12, y); y += 6;
+    doc.text(`Fonction : ${fonctionSoignant}`, 12, y); y += 10;
+  </script>
+<fieldset>
+  <legend>Résumé de conformité global</legend>
+  <div id="globalAlert" style="margin: 10px 0; padding: 10px; border-radius: 5px; font-weight: bold; text-align: center;"></div>
+  <textarea name="globalComment" placeholder="Commentaires globaux, actions correctives proposées..." style="width:100%; height:80px;"></textarea>
+</fieldset>
+
+<script>
+  document.addEventListener("DOMContentLoaded", function () {
+    function updateGlobalSummary() {
+      const checkboxes = document.querySelectorAll("input[type='checkbox']");
+      const checked = document.querySelectorAll("input[type='checkbox']:checked");
+      const alert = document.getElementById("globalAlert");
+      const total = checkboxes.length;
+      const valid = checked.length;
+      const pct = Math.round((valid / total) * 100);
+
+      if (pct === 100) {
+        alert.textContent = `🟢 Dossier complet : ${pct}%`;
+        alert.style.backgroundColor = "#d4edda";
+        alert.style.color = "#155724";
+        alert.style.border = "1px solid #c3e6cb";
+      } else if (pct >= 60) {
+        alert.textContent = `🟠 Dossier partiellement conforme : ${pct}%`;
+        alert.style.backgroundColor = "#fff3cd";
+        alert.style.color = "#856404";
+        alert.style.border = "1px solid #ffeeba";
+      } else {
+        alert.textContent = `🔴 Dossier incomplet : ${pct}%`;
+        alert.style.backgroundColor = "#f8d7da";
+        alert.style.color = "#721c24";
+        alert.style.border = "1px solid #f5c6cb";
+      }
+    }
+    document.querySelectorAll("input[type='checkbox']").forEach(cb => {
+      cb.addEventListener("change", updateGlobalSummary);
+    });
+    updateGlobalSummary();
+  });
 </script>
-<button onclick="generatePDF()">Générer la synthèse PDF</button>
-
 </body>
 </html>
