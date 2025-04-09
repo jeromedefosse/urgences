@@ -1,0 +1,165 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <title>Formulaire Traumato Urgences</title>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+</head>
+<body>
+<script>
+  document.addEventListener("DOMContentLoaded", function () {
+    const fieldsets = document.querySelectorAll("fieldset");
+    const globalAlert = document.createElement("div");
+    globalAlert.style.margin = "20px 0";
+    globalAlert.style.padding = "10px";
+    globalAlert.style.borderRadius = "5px";
+    globalAlert.style.fontWeight = "bold";
+    globalAlert.style.textAlign = "center";
+    globalAlert.style.fontSize = "16px";
+
+    const explanationDiv = document.createElement("div");
+    explanationDiv.innerHTML = '<label>Commentaire global :<br><textarea style="width:100%; height:80px;" placeholder="Explication ou plan d\'action global si nécessaire..."></textarea></label>';
+
+    document.body.appendChild(globalAlert);
+    document.body.appendChild(explanationDiv);
+
+    function updateAllAlerts() {
+      let totalFields = 0;
+      let totalComplete = 0;
+      let totalChecked = 0;
+      let totalCheckboxes = 0;
+
+      fieldsets.forEach(fieldset => {
+        const checkboxes = fieldset.querySelectorAll("input[type='checkbox']");
+        const checked = fieldset.querySelectorAll("input[type='checkbox']:checked").length;
+        totalCheckboxes += checkboxes.length;
+        totalChecked += checked;
+        totalFields++;
+        if (checked === checkboxes.length) totalComplete++;
+
+        const alertDiv = fieldset.querySelector("div.alert") || document.createElement("div");
+        alertDiv.className = "alert";
+        alertDiv.style.marginTop = "10px";
+        alertDiv.style.padding = "5px";
+        alertDiv.style.borderRadius = "5px";
+        alertDiv.style.fontWeight = "bold";
+        if (!fieldset.contains(alertDiv)) fieldset.appendChild(alertDiv);
+
+        if (checked === checkboxes.length) {
+          alertDiv.textContent = "✅ Étape conforme";
+          alertDiv.style.backgroundColor = "#d4edda";
+          alertDiv.style.color = "#155724";
+          alertDiv.style.border = "1px solid #c3e6cb";
+        } else if (checked === 0) {
+          alertDiv.textContent = "⛔ Aucune case cochée";
+          alertDiv.style.backgroundColor = "#f8d7da";
+          alertDiv.style.color = "#721c24";
+          alertDiv.style.border = "1px solid #f5c6cb";
+        } else {
+          alertDiv.textContent = "⚠️ Étape partiellement remplie";
+          alertDiv.style.backgroundColor = "#fff3cd";
+          alertDiv.style.color = "#856404";
+          alertDiv.style.border = "1px solid #ffeeba";
+        }
+      });
+
+      const completionRate = Math.round((totalChecked / totalCheckboxes) * 100);
+      if (completionRate === 100) {
+        globalAlert.textContent = `🟢 Dossier complet à ${completionRate}%`;
+        globalAlert.style.backgroundColor = "#d4edda";
+        globalAlert.style.color = "#155724";
+        globalAlert.style.border = "1px solid #c3e6cb";
+      } else if (completionRate >= 60) {
+        globalAlert.textContent = `🟠 Dossier partiellement conforme (${completionRate}%)`;
+        globalAlert.style.backgroundColor = "#fff3cd";
+        globalAlert.style.color = "#856404";
+        globalAlert.style.border = "1px solid #ffeeba";
+      } else {
+        globalAlert.textContent = `🔴 Dossier incomplet (${completionRate}%)`;
+        globalAlert.style.backgroundColor = "#f8d7da";
+        globalAlert.style.color = "#721c24";
+        globalAlert.style.border = "1px solid #f5c6cb";
+      }
+    }
+
+    fieldsets.forEach(fieldset => {
+      const checkboxes = fieldset.querySelectorAll("input[type='checkbox']");
+      checkboxes.forEach(cb => cb.addEventListener("change", updateAllAlerts));
+    });
+
+    updateAllAlerts();
+  });
+
+  window.generatePDF = function () {
+    const { jsPDF } = window.jspdf;
+    const doc = new jsPDF();
+    let y = 10;
+
+    doc.setFontSize(14);
+    doc.text("Synthèse Parcours ATU - Traumatologie", 10, y);
+    y += 10;
+
+    const nom = document.querySelector('input[name="nomPatient"]')?.value || "";
+    const date = document.querySelector('input[name="date"]')?.value || "";
+    const dossier = document.querySelector('input[name="numDossier"]')?.value || "";
+
+    doc.setFontSize(12);
+    doc.text(`Établissement : Polyclinique Côte Basque Sud`, 10, y); y += 7;
+    doc.text(`Service : Urgences`, 10, y); y += 7;
+    doc.text(`Patient : ${nom}`, 10, y); y += 7;
+    doc.text(`Date : ${date}`, 10, y); y += 7;
+    doc.text(`Numéro de dossier : ${dossier}`, 10, y); y += 10;
+
+    document.querySelectorAll("fieldset").forEach(fieldset => {
+      const legend = fieldset.querySelector("legend")?.innerText || "";
+      const checkboxes = fieldset.querySelectorAll("input[type='checkbox']");
+      const comment = fieldset.querySelector("textarea")?.value.trim();
+
+      doc.setFontSize(12);
+      doc.text(`• ${legend}`, 10, y);
+      y += 7;
+
+      checkboxes.forEach(cb => {
+        if (cb.checked) {
+          const label = cb.parentElement.innerText.trim();
+          doc.setFontSize(10);
+          doc.text(`   - ${label}`, 12, y);
+          y += 6;
+        }
+      });
+
+      if (comment) {
+        doc.setFontSize(10);
+        doc.text(`→ Commentaire : ${comment}`, 12, y);
+        y += 7;
+      }
+
+      if (y > 270) { doc.addPage(); y = 10; }
+    });
+
+    const commentaireGlobal = document.querySelector("textarea[placeholder*='plan d\'action global']")?.value || "";
+    if (commentaireGlobal) {
+      doc.setFontSize(12);
+      doc.text("Commentaire global :", 10, y); y += 6;
+      doc.setFontSize(10);
+      doc.text(commentaireGlobal, 12, y); y += 10;
+    }
+
+    const nomS = document.querySelector('input[name="nomSoignant"]')?.value || "";
+    const prenomS = document.querySelector('input[name="prenomSoignant"]')?.value || "";
+    const fonctionS = document.querySelector('input[name="fonctionSoignant"]')?.value || "";
+
+    doc.setFontSize(12);
+    doc.text("Signature du professionnel ayant réalisé la vérification :", 10, y); y += 6;
+    doc.setFontSize(10);
+    doc.text(`Nom : ${nomS}`, 12, y); y += 5;
+    doc.text(`Prénom : ${prenomS}`, 12, y); y += 5;
+    doc.text(`Fonction : ${fonctionS}`, 12, y); y += 10;
+
+    doc.save("Synthese_traumatologie.pdf");
+  };
+</script>
+<button onclick="generatePDF()">Générer la synthèse PDF</button>
+
+</body>
+</html>
