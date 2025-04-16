@@ -1,0 +1,1103 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <title>Formulaire ATU - Traumatologie</title>
+  <!-- Librairie jsPDF pour export PDF côté navigateur (optionnel) -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+  <style>
+    body { font-family: Arial, sans-serif; margin: 20px; }
+    fieldset {
+      margin-bottom: 20px; padding: 10px;
+      border: 1px solid #ccc; border-radius: 5px;
+    }
+    legend {
+      font-weight: bold; color: #007BFF;
+    }
+    .alert {
+      margin-top:10px; padding:5px; border-radius:5px; font-weight:bold;
+    }
+    .hidden { display: none !important; }
+  </style>
+
+  <script>
+    document.addEventListener("DOMContentLoaded", function () {
+      // -----------------------------------------
+      // 1) Choix du service + affichage sous-sections
+      // -----------------------------------------
+      const serviceSelect = document.getElementById("serviceSelectTop");
+      // Sous-sections pour d'autres services (bloc, medecine, etc.)
+      const sousSections = {
+        bloc: "sousSectionBloc",
+        soins_palliatifs: "sousSectionPalliatif",
+        medecine: "sousSectionMedecine",
+        chirurgie: "sousSectionChirurgie",
+        ambulatoire: "sousSectionAmbulatoire",
+        chimiotherapie: "sousSectionChimiotherapie",
+        hopital_jour: "sousSectionHopitalJour",
+        soins_externes: "sousSectionSoinsExternes"
+      };
+      function afficherSousSection(service) {
+        Object.entries(sousSections).forEach(([key, id]) => {
+          const section = document.getElementById(id);
+          if (section) section.style.display = (key === service) ? "block" : "none";
+        });
+      }
+      serviceSelect.addEventListener("change", function () {
+        const selectedService = this.value;
+        afficherSousSection(selectedService);
+
+        // Màj en-tête
+        const displayedService = document.getElementById("displayedService");
+        const selectedOption = this.options[this.selectedIndex];
+        if (displayedService && selectedOption) {
+          displayedService.textContent = "Service : " + selectedOption.textContent.trim();
+        }
+
+        // Affichage spécifique si urgences
+        const filiereUrgences = document.getElementById("filiereUrgences");
+        filiereUrgences.style.display = (selectedService === "urgences") ? "block" : "none";
+      });
+
+      // -----------------------------------------
+      // 2) Si "filière longue" => tri: courte/longue
+      // -----------------------------------------
+      const radioFiliere = document.querySelectorAll('input[name="filiereUrg"]');
+      radioFiliere.forEach(r => {
+        r.addEventListener("change", () => {
+          const val = document.querySelector('input[name="filiereUrg"]:checked')?.value;
+          // Afficher la section "courte" ou "longue"
+          document.getElementById("sectionCourte").style.display = (val === "courte") ? "block" : "none";
+          document.getElementById("sectionLongue").style.display = (val === "longue") ? "block" : "none";
+        });
+      });
+
+      // -----------------------------------------
+      // 3) Dans la filière longue : orientation finale
+      // -----------------------------------------
+      const radioOrientation = document.querySelectorAll('input[name="orientationLongue"]');
+      radioOrientation.forEach(r => {
+        r.addEventListener("change", () => {
+          const val = document.querySelector('input[name="orientationLongue"]:checked')?.value;
+          document.getElementById("uhcdSections").style.display = (val === "hospitalisation_uhcd") ? "block" : "none";
+        });
+      });
+
+      // -----------------------------------------
+      // 4) Indicateurs par section (complet / partiel / vide)
+      // -----------------------------------------
+      const fieldsets = document.querySelectorAll("fieldset");
+      fieldsets.forEach(fieldset => {
+        const checkboxes = fieldset.querySelectorAll("input[type='checkbox']");
+        const alertDiv = fieldset.querySelector(".alert");
+        if (!alertDiv || checkboxes.length === 0) return;
+
+        function updateAlert() {
+          const total = checkboxes.length;
+          const checked = fieldset.querySelectorAll("input[type='checkbox']:checked").length;
+          if (checked === total) {
+            alertDiv.textContent = "✅ Étape conforme";
+            alertDiv.style.backgroundColor = "#d4edda";
+            alertDiv.style.color = "#155724";
+            alertDiv.style.border = "1px solid #c3e6cb";
+          } else if (checked === 0) {
+            alertDiv.textContent = "⛔ Aucune case cochée";
+            alertDiv.style.backgroundColor = "#f8d7da";
+            alertDiv.style.color = "#721c24";
+            alertDiv.style.border = "1px solid #f5c6cb";
+          } else {
+            alertDiv.textContent = "⚠️ Étape partiellement remplie";
+            alertDiv.style.backgroundColor = "#fff3cd";
+            alertDiv.style.color = "#856404";
+            alertDiv.style.border = "1px solid #ffeeba";
+          }
+        }
+        checkboxes.forEach(cb => cb.addEventListener("change", updateAlert));
+        updateAlert();
+      });
+
+      // -----------------------------------------
+      // 5) Score global
+      // -----------------------------------------
+      const alertBox = document.getElementById("globalConformityAlert");
+      const allCheckboxes = document.querySelectorAll("input[type='checkbox']");
+      function updateGlobalScore() {
+        const total = allCheckboxes.length;
+        const checked = document.querySelectorAll("input[type='checkbox']:checked").length;
+        const percent = Math.round((checked / total) * 100);
+
+        if (percent === 100) {
+          alertBox.textContent = `🟢 Dossier complet : ${percent}%`;
+          alertBox.style.backgroundColor = "#d4edda";
+          alertBox.style.color = "#155724";
+          alertBox.style.border = "1px solid #c3e6cb";
+        } else if (percent >= 60) {
+          alertBox.textContent = `🟠 Dossier partiellement conforme : ${percent}%`;
+          alertBox.style.backgroundColor = "#fff3cd";
+          alertBox.style.color = "#856404";
+          alertBox.style.border = "1px solid #ffeeba";
+        } else {
+          alertBox.textContent = `🔴 Dossier incomplet : ${percent}%`;
+          alertBox.style.backgroundColor = "#f8d7da";
+          alertBox.style.color = "#721c24";
+          alertBox.style.border = "1px solid #f5c6cb";
+        }
+      }
+      allCheckboxes.forEach(cb => cb.addEventListener("change", updateGlobalScore));
+      updateGlobalScore();
+
+      // Remplir date auto si vide
+      const autoDateField = document.getElementById("autoDate");
+      if (autoDateField && !autoDateField.value) {
+        const today = new Date();
+        const yyyy = today.getFullYear();
+        const mm = String(today.getMonth() + 1).padStart(2, '0');
+        const dd = String(today.getDate()).padStart(2, '0');
+        autoDateField.value = `${yyyy}-${mm}-${dd}`;
+      }
+    });
+  </script>
+</head>
+
+<body>
+
+<h2 style="color:#007BFF; font-size:16pt;">Polyclinique Côte Basque Sud</h2>
+<h3 id="displayedService" style="color:#007BFF; font-size:14pt;">Service : </h3>
+<h4 id="displayedFiliere" style="color:#007BFF; font-size:13pt; font-weight:normal;">Filière : </h4>
+
+<!-- Sélection du service (affiche sous-sections bloc, palliatif, etc.) -->
+<fieldset>
+  <legend style="color:#007BFF; font-size:13pt; font-weight:bold;">Sélection initiale du service</legend>
+  <select id="serviceSelectTop" style="font-size:1.1em; font-weight:bold; color:#007BFF;">
+    <option value="">-- Sélectionner --</option>
+    <option value="urgences">Urgences</option>
+    <option value="bloc">Bloc</option>
+    <option value="medecine">Médecine</option>
+    <option value="soins_palliatifs">Soins palliatifs</option>
+    <option value="chirurgie">Chirurgie</option>
+    <option value="ambulatoire">Ambulatoire</option>
+    <!-- etc. -->
+  </select>
+</fieldset>
+
+<!-- Coordonnées patient -->
+<label>Nom patient : <input type="text" name="nomPatient"></label><br>
+<label>Prénom patient : <input type="text" name="prenomPatient"></label><br>
+<label>Date de naissance : <input type="date" name="dateNaissance"></label><br>
+<label>Date : <input type="date" id="autoDate"></label><br>
+
+<!-- URGENCES : filière courte/longue -->
+<fieldset id="filiereUrgences" style="display:none;">
+  <legend style="color:#007BFF; font-size:13pt;">Filière urgences</legend>
+  <label><input type="radio" name="filiereUrg" value="courte"> Filière courte</label>
+  <label><input type="radio" name="filiereUrg" value="longue"> Filière longue</label>
+</fieldset>
+
+<!-- SECTION COURTE - FILIÈRE URGENCES -->
+<fieldset id="sectionCourte" style="display:none;">
+  <legend style="color:#007BFF; font-size:13pt;">Filière Courte (Urgences)</legend>
+
+<!-- ===== SECTION ÉVALUATION ET TRIAGE IOA ou IDE ===== -->
+<fieldset id="ancrage-triage">
+  <label for="medecinReferent" style="display:block; margin-bottom:5px; font-weight:bold;">Nom du médecin référent :</label>
+  <input type="text" id="medecinReferent" name="medecinReferent" style="width:100%; margin-bottom:15px;">
+  <fieldset id="ancrage-triage">
+    <legend style="color:#007BFF; font-size:13pt; font-weight:bold;">Évaluation et triage IOA ou IDE</legend>
+    <ul>
+      <li><input type="checkbox"> Vérification des informations d'identitovigilance</li>
+      <li><input type="checkbox"> Intégration au dossier des ordonnances en cours</li>
+      <li><input type="checkbox"> Intégration au dossier des antécédents médicaux</li>
+      <li><input type="checkbox"> Motif d’admission documenté</li>
+      <li><input type="checkbox"> Contexte clinique précisé</li>
+      <li><input type="checkbox"> Symptômes rapportés tracés</li>
+      <li><input type="checkbox"> Évaluation clinique initiale réalisée</li>
+      <li><input type="checkbox"> Score FRENCH ou triage formel documenté</li>
+      <li><input type="checkbox"> Priorisation validée par l'IDE ou l'IOA</li>
+      <li><input type="checkbox"> Contexte et motif d'admission réévalués</li>
+      <li><input type="checkbox"> Risques identifiés et tracés (douleur, confusion, chute...)</li>
+      <li><input type="checkbox"> Plan de surveillance adapté mis en œuvre</li>
+      <li><input type="checkbox"> Information du patient assurée et tracée</li>
+    </ul>
+  <label style="display:block; margin-top:10px; font-weight:bold; color:#007BFF; font-size:13px;">
+    <input type="checkbox" onclick="
+      const fieldset = this.closest('fieldset');
+      const checkboxes = fieldset.querySelectorAll('input[type=checkbox]');
+      const alertDiv = fieldset.querySelectorAll('.alert')[0];
+      const confirmMsg = this.checked
+        ? '⚠️ Confirmez-vous vouloir cocher toute cette section ?'
+        : 'Souhaitez-vous décocher tous les éléments de cette section ?';
+      if (confirm(confirmMsg)) {
+        checkboxes.forEach(cb => cb.checked = this.checked);
+        alertDiv?.dispatchEvent(new Event('change'));
+      } else {
+        this.checked = !this.checked;
+      }
+    ">
+    ✅ Marquer cette section comme conforme
+  </label>
+  <textarea name="courtTriageComment" placeholder="Commentaires ou anomalies lors du triage (filière courte)..." style="width:100%; height:60px;"></textarea>
+  <div class="alert" style="margin-top:10px; padding:5px; border-radius:5px; font-weight:bold;"></div>
+
+  <!-- Prise en charge de la douleur -->
+  <p><strong>Prise en charge de la douleur</strong></p>
+  <ul>
+    <li><input type="checkbox"> Évaluation initiale de la douleur (EVA, EN, hétéro-évaluation)</li>
+    <li><input type="checkbox"> Traçabilité de l’intensité de la douleur dans le dossier</li>
+    <li><input type="checkbox"> Prescription antalgique adaptée au niveau de douleur</li>
+    <li><input type="checkbox"> Administration du traitement antalgique réalisée</li>
+    <li><input type="checkbox"> Réévaluation de l’efficacité du traitement réalisée</li>
+    <li><input type="checkbox"> Réévaluation tracée dans le dossier</li>
+    <li><input type="checkbox"> Adaptation du traitement si nécessaire</li>
+  </ul>
+  <label style="display:block; margin-top:10px; font-weight:bold; color:#007BFF; font-size:13px;">
+   <input type="checkbox" onclick="
+      const fieldset = this.closest('fieldset');
+      const checkboxes = fieldset.querySelectorAll('input[type=checkbox]');
+      const alertDiv = fieldset.querySelectorAll('.alert')[0];
+      const confirmMsg = this.checked
+        ? '⚠️ Confirmez-vous vouloir cocher toute cette section ?'
+        : 'Souhaitez-vous décocher tous les éléments de cette section ?';
+      if (confirm(confirmMsg)) {
+        checkboxes.forEach(cb => cb.checked = this.checked);
+        alertDiv?.dispatchEvent(new Event('change'));
+      } else {
+        this.checked = !this.checked;
+      }
+    ">
+    ✅ Marquer cette section comme conforme
+  </label>
+  <textarea name="courtDouleurComment" placeholder="Commentaires ou anomalies de PEC de la douleur (filière courte)..." style="width:100%; height:60px;"></textarea>
+  <div class="alert" style="margin-top:10px; padding:5px; border-radius:5px; font-weight:bold;"></div>
+
+  <!-- Prescriptions initiales et soins immédiats -->
+  <p><strong>Prescriptions initiales et soins immédiats</strong></p>
+  <ul>
+    <li><input type="checkbox"> Prescription médicale initiale documentée</li>
+    <li><input type="checkbox"> Administration des soins réalisée selon prescription</li>
+    <li><input type="checkbox"> Surveillance infirmière mise en place après soins</li>
+    <li><input type="checkbox"> Traçabilité des actes infirmiers dans le DPI</li>
+    <li><input type="checkbox"> Ordonnances imprimées ou transmises</li>
+    <li><input type="checkbox"> Vérification de la bonne compréhension par le patient</li>
+  </ul>
+  <label style="display:block; margin-top:10px; font-weight:bold; color:#007BFF; font-size:13px;">
+    <input type="checkbox" onclick="
+      const fieldset = this.closest('fieldset');
+      const checkboxes = fieldset.querySelectorAll('input[type=checkbox]');
+      const alertDiv = fieldset.querySelectorAll('.alert')[0];
+      const confirmMsg = this.checked
+        ? '⚠️ Confirmez-vous vouloir cocher toute cette section ?'
+        : 'Souhaitez-vous décocher tous les éléments de cette section ?';
+      if (confirm(confirmMsg)) {
+        checkboxes.forEach(cb => cb.checked = this.checked);
+        alertDiv?.dispatchEvent(new Event('change'));
+      } else {
+        this.checked = !this.checked;
+      }
+    ">
+    ✅ Marquer cette section comme conforme
+  </label>
+  <textarea name="longTriageComment" placeholder="Commentaires ou anomalies lors du triage (filière longue)..." style="width:100%; height:60px;"></textarea>
+  <div class="alert" style="margin-top:10px; padding:5px; border-radius:5px; font-weight:bold;"></div>
+
+  <!-- Prise en charge médicale -->
+  <p><strong>Prise en charge médicale</strong></p>
+  <ul>
+    <li><input type="checkbox"> 🔹 Information claire du patient sur les décisions médicales</li>
+    <li><input type="checkbox"> 🔹 Consentement éclairé recueilli et tracé si requis</li>
+    <li><input type="checkbox"> 🔹 Examen clinique complet effectué</li>
+    <li><input type="checkbox"> 🔹 Hypothèses diagnostiques posées</li>
+    <li><input type="checkbox"> 🔹 Examens complémentaires prescrits et tracés</li>
+    <li><input type="checkbox"> 🔹 Interprétation des résultats intégrée au dossier</li>
+    <li><input type="checkbox"> 🔹 Décision médicale argumentée (PEC, hospitalisation, retour domicile...)</li>
+    <li><input type="checkbox"> 🔹 Information du patient sur la stratégie médicale</li>
+    <li><input type="checkbox"> 🔹 Traçabilité des éléments médicaux dans le DPI</li>
+  </ul>
+  <label style="display:block; margin-top:10px; font-weight:bold; color:#007BFF; font-size:13px;">
+    <input type="checkbox"
+      onclick="
+        const fieldset = this.closest('fieldset');
+        const checkboxes = fieldset.querySelectorAll('input[type=checkbox]');
+        const alertDiv = fieldset.querySelectorAll('.alert')[3];
+        const confirmMsg = this.checked ? '⚠️ Confirmez-vous vouloir cocher toute cette section ?' : 'Souhaitez-vous décocher tous les éléments de cette section ?';
+        if (confirm(confirmMsg)) {
+          checkboxes.forEach(cb => cb.checked = this.checked);
+          alertDiv?.dispatchEvent(new Event('change'));
+        } else {
+          this.checked = !this.checked;
+        }
+      "
+    > ✅ Marquer cette section comme conforme
+  </label>
+  <textarea name="pecMedicalComment" placeholder="Commentaires ou anomalies dans la prise en charge médicale..." style="width:100%; height:60px;"></textarea>
+  <div class="alert" style="margin-top:10px; padding:5px; border-radius:5px; font-weight:bold;"></div>
+
+  <!-- Vérification de la complétude du DPI -->
+  <p><strong>Vérification de la complétude du DPI</strong></p>
+  <ul>
+    <li><input type="checkbox"> Données administratives complètes et validées</li>
+    <li><input type="checkbox"> Fiche d’identitovigilance intégrée et conforme</li>
+    <li><input type="checkbox"> Traçabilité complète des soins infirmiers (observations, actes, évaluations)</li>
+    <li><input type="checkbox"> Traçabilité des actes médicaux (consultation, examens, prescriptions)</li>
+    <li><input type="checkbox"> Résultats des examens complémentaires intégrés</li>
+    <li><input type="checkbox"> Compte rendu médical et synthèse de sortie présents</li>
+    <li><input type="checkbox"> Consentements et informations patient intégrés</li>
+    <li><input type="checkbox"> Codages administratifs et médicaux saisis (CIM-10, GEMSA, CCMU...)</li>
+  </ul>
+  <label style="display:block; margin-top:10px; font-weight:bold; color:#007BFF; font-size:13px;\">
+    <input type="checkbox"
+      onclick="
+        const fieldset = this.closest('fieldset');
+        const checkboxes = fieldset.querySelectorAll('input[type=checkbox]');
+        const alertDiv = fieldset.querySelectorAll('.alert')[4];
+        const confirmMsg = this.checked ? '⚠️ Confirmez-vous vouloir cocher toute cette section ?' : 'Souhaitez-vous décocher tous les éléments de cette section ?';
+        if (confirm(confirmMsg)) {
+          checkboxes.forEach(cb => cb.checked = this.checked);
+          alertDiv?.dispatchEvent(new Event('change'));
+        } else {
+          this.checked = !this.checked;
+        }
+      
+    > ✅ Marquer cette section comme conforme
+  </label>
+  <textarea name="dpiCompletenessComment" placeholder="Commentaires sur la complétude du dossier dans le DPI..." style="width:100%; height:60px;\"></textarea>
+  <div class="alert" style="margin-top:10px; padding:5px; border-radius:5px; font-weight:bold;\"></div>
+
+
+  <!-- Orientation -->
+  <p><strong>Orientation</strong></p>
+  <label><input type="radio" name="orientationCourte" value="domicile"> Retour à domicile (liste de documents à remettre)</label><br>
+  <label><input type="radio" name="orientationlongue" value="hospitalisation"> Hospitalisation (UHCD, médecine, chirurgie, soins palliatifs, GCS...)</label><br>
+  <label><input type="radio" name="orientationlongue" value="transfert"> Transfert (préparer sections correspondant au transfert)</label><br>
+</fieldset>
+  <!-- Message spécifique à la filière courte si hospitalisation ou transfert -->
+  <div id="alerteFiliereCourte" style="display:none; margin-top:15px; padding:10px; background-color:#fff3cd; border:1px solid #ffeeba; color:#856404; border-radius:5px; font-weight:bold;">
+    ⚠️ Le patient est orienté vers une hospitalisation ou un transfert. Veuillez basculer en <strong>filière longue</strong> pour activer les sections correspondantes.
+  </div>
+
+  <!-- Documents à remettre à la sortie (si retour à domicile) -->
+  <div id="documentsSortieCourte" style="margin-top:15px;">
+    <p><strong>📄 Documents à remettre au patient (retour à domicile) :</strong></p>
+    <ul>
+      <li><input type="checkbox"> Lettre de sortie</li>
+      <li><input type="checkbox"> Ordonnances</li>
+      <li><input type="checkbox"> Consignes de surveillance</li>
+      <li><input type="checkbox"> RDV post-urgence si nécessaire</li>
+      <li><input type="checkbox"> Arrêt de travail (si indiqué)</li>
+    </ul>
+    <p><strong>💻 Vérification du dossier informatique :</strong></p>
+    <ul>
+      <li><input type="checkbox"> Codage GEMSA / CIM-10 saisi</li>
+      <li><input type="checkbox"> Compte rendu médical intégré</li>
+      <li><input type="checkbox"> Fiche de liaison IDE enregistrée</li>
+    </ul>
+  </div>
+</fieldset>
+
+<!-- SECTION LONGUE -->
+<script>
+  document.addEventListener("DOMContentLoaded", function () {
+    const serviceSelect = document.getElementById("selectService");
+    const filiereSelect = document.getElementById("selectFiliere");
+
+    if (serviceSelect && filiereSelect) {
+      function afficherFiliere() {
+        const filiere = filiereSelect.value;
+        const filiereLongue = document.getElementById("sectionLongue");
+
+        // Cacher ou afficher la filière longue
+        if (filiere === "longue") {
+          filiereLongue.style.display = "block";
+        } else {
+          filiereLongue.style.display = "none";
+        }
+      }
+
+      filiereSelect.addEventListener("change", afficherFiliere);
+      afficherFiliere(); // Initialiser à l'affichage
+    }
+  });
+</script>
+<fieldset id="sectionlongue" style="display:none;">
+  <legend style="color:#007BFF; font-size:13pt;">Filière longue (Urgences)</legend>
+
+<!-- ===== SECTION ÉVALUATION ET TRIAGE IOA ou IDE ===== -->
+<fieldset id="ancrage-triage">
+  <label for="medecinReferent" style="display:block; margin-bottom:5px; font-weight:bold;">Nom du médecin référent :</label>
+  <input type="text" id="medecinReferent" name="medecinReferent" style="width:100%; margin-bottom:15px;">
+  <fieldset id="ancrage-triage">
+    <legend style="color:#007BFF; font-size:13pt; font-weight:bold;">Évaluation et triage IOA ou IDE</legend>
+    <ul>
+      <li><input type="checkbox"> Vérification des informations d'identitovigilance</li>
+      <li><input type="checkbox"> Intégration au dossier des ordonnances en cours</li>
+      <li><input type="checkbox"> Intégration au dossier des antécédents médicaux</li>
+      <li><input type="checkbox"> Motif d’admission documenté</li>
+      <li><input type="checkbox"> Contexte clinique précisé</li>
+      <li><input type="checkbox"> Symptômes rapportés tracés</li>
+      <li><input type="checkbox"> Évaluation clinique initiale réalisée</li>
+      <li><input type="checkbox"> Score FRENCH ou triage formel documenté</li>
+      <li><input type="checkbox"> Priorisation validée par l'IDE ou l'IOA</li>
+      <li><input type="checkbox"> Contexte et motif d'admission réévalués</li>
+      <li><input type="checkbox"> Risques identifiés et tracés (douleur, confusion, chute...)</li>
+      <li><input type="checkbox"> Plan de surveillance adapté mis en œuvre</li>
+      <li><input type="checkbox"> Information du patient assurée et tracée</li>
+    </ul>
+  <label style="display:block; margin-top:10px; font-weight:bold; color:#007BFF; font-size:13px;">
+    <input type="checkbox" onclick="
+      const fieldset = this.closest('fieldset');
+      const checkboxes = fieldset.querySelectorAll('input[type=checkbox]');
+      const alertDiv = fieldset.querySelectorAll('.alert')[0];
+      const confirmMsg = this.checked
+        ? '⚠️ Confirmez-vous vouloir cocher toute cette section ?'
+        : 'Souhaitez-vous décocher tous les éléments de cette section ?';
+      if (confirm(confirmMsg)) {
+        checkboxes.forEach(cb => cb.checked = this.checked);
+        alertDiv?.dispatchEvent(new Event('change'));
+      } else {
+        this.checked = !this.checked;
+      }
+    ">
+    ✅ Marquer cette section comme conforme
+  </label>
+  <textarea name="longTriageComment" placeholder="Commentaires ou anomalies lors du triage (filière longue)..." style="width:100%; height:60px;"></textarea>
+  <div class="alert" style="margin-top:10px; padding:5px; border-radius:5px; font-weight:bold;"></div>
+
+  <!-- Prise en charge de la douleur -->
+  <p><strong>Prise en charge de la douleur</strong></p>
+  <ul>
+    <li><input type="checkbox"> Évaluation initiale de la douleur (EVA, EN, hétéro-évaluation)</li>
+    <li><input type="checkbox"> Traçabilité de l’intensité de la douleur dans le dossier</li>
+    <li><input type="checkbox"> Prescription antalgique adaptée au niveau de douleur</li>
+    <li><input type="checkbox"> Administration du traitement antalgique réalisée</li>
+    <li><input type="checkbox"> Réévaluation de l’efficacité du traitement réalisée</li>
+    <li><input type="checkbox"> Réévaluation tracée dans le dossier</li>
+    <li><input type="checkbox"> Adaptation du traitement si nécessaire</li>
+  </ul>
+  <label style="display:block; margin-top:10px; font-weight:bold; color:#007BFF; font-size:13px;">
+   <input type="checkbox" onclick="
+      const fieldset = this.closest('fieldset');
+      const checkboxes = fieldset.querySelectorAll('input[type=checkbox]');
+      const alertDiv = fieldset.querySelectorAll('.alert')[0];
+      const confirmMsg = this.checked
+        ? '⚠️ Confirmez-vous vouloir cocher toute cette section ?'
+        : 'Souhaitez-vous décocher tous les éléments de cette section ?';
+      if (confirm(confirmMsg)) {
+        checkboxes.forEach(cb => cb.checked = this.checked);
+        alertDiv?.dispatchEvent(new Event('change'));
+      } else {
+        this.checked = !this.checked;
+      }
+    ">
+    ✅ Marquer cette section comme conforme
+  </label>
+  <textarea name="longDouleurComment" placeholder="Commentaires ou anomalies de PEC de la douleur (filière longue)..." style="width:100%; height:60px;"></textarea>
+  <div class="alert" style="margin-top:10px; padding:5px; border-radius:5px; font-weight:bold;"></div>
+
+  <!-- Prescriptions initiales et soins immédiats -->
+  <p><strong>Prescriptions initiales et soins immédiats</strong></p>
+  <ul>
+    <li><input type="checkbox"> Prescription médicale initiale documentée</li>
+    <li><input type="checkbox"> Administration des soins réalisée selon prescription</li>
+    <li><input type="checkbox"> Surveillance infirmière mise en place après soins</li>
+    <li><input type="checkbox"> Traçabilité des actes infirmiers dans le DPI</li>
+    <li><input type="checkbox"> Ordonnances imprimées ou transmises</li>
+    <li><input type="checkbox"> Vérification de la bonne compréhension par le patient</li>
+  </ul>
+  <label style="display:block; margin-top:10px; font-weight:bold; color:#007BFF; font-size:13px;">
+    <input type="checkbox" onclick="
+      const fieldset = this.closest('fieldset');
+      const checkboxes = fieldset.querySelectorAll('input[type=checkbox]');
+      const alertDiv = fieldset.querySelectorAll('.alert')[0];
+      const confirmMsg = this.checked
+        ? '⚠️ Confirmez-vous vouloir cocher toute cette section ?'
+        : 'Souhaitez-vous décocher tous les éléments de cette section ?';
+      if (confirm(confirmMsg)) {
+        checkboxes.forEach(cb => cb.checked = this.checked);
+        alertDiv?.dispatchEvent(new Event('change'));
+      } else {
+        this.checked = !this.checked;
+      }
+    ">
+    ✅ Marquer cette section comme conforme
+  </label>
+  <textarea name="longTriageComment" placeholder="Commentaires ou anomalies lors du triage (filière longue)..." style="width:100%; height:60px;"></textarea>
+  <div class="alert" style="margin-top:10px; padding:5px; border-radius:5px; font-weight:bold;"></div>
+
+  <!-- Prise en charge médicale -->
+  <p><strong>Prise en charge médicale</strong></p>
+  <ul>
+    <li><input type="checkbox"> 🔹 Information claire du patient sur les décisions médicales</li>
+    <li><input type="checkbox"> 🔹 Consentement éclairé recueilli et tracé si requis</li>
+    <li><input type="checkbox"> 🔹 Examen clinique complet effectué</li>
+    <li><input type="checkbox"> 🔹 Hypothèses diagnostiques posées</li>
+    <li><input type="checkbox"> 🔹 Examens complémentaires prescrits et tracés</li>
+    <li><input type="checkbox"> 🔹 Interprétation des résultats intégrée au dossier</li>
+    <li><input type="checkbox"> 🔹 Décision médicale argumentée (PEC, hospitalisation, retour domicile...)</li>
+    <li><input type="checkbox"> 🔹 Information du patient sur la stratégie médicale</li>
+    <li><input type="checkbox"> 🔹 Traçabilité des éléments médicaux dans le DPI</li>
+  </ul>
+  <label style="display:block; margin-top:10px; font-weight:bold; color:#007BFF; font-size:13px;">
+    <input type="checkbox"
+      onclick="
+        const fieldset = this.closest('fieldset');
+        const checkboxes = fieldset.querySelectorAll('input[type=checkbox]');
+        const alertDiv = fieldset.querySelectorAll('.alert')[3];
+        const confirmMsg = this.checked ? '⚠️ Confirmez-vous vouloir cocher toute cette section ?' : 'Souhaitez-vous décocher tous les éléments de cette section ?';
+        if (confirm(confirmMsg)) {
+          checkboxes.forEach(cb => cb.checked = this.checked);
+          alertDiv?.dispatchEvent(new Event('change'));
+        } else {
+          this.checked = !this.checked;
+        }
+      "
+    > ✅ Marquer cette section comme conforme
+  </label>
+  <textarea name="pecMedicalComment" placeholder="Commentaires ou anomalies dans la prise en charge médicale..." style="width:100%; height:60px;"></textarea>
+  <div class="alert" style="margin-top:10px; padding:5px; border-radius:5px; font-weight:bold;"></div>
+
+  <!-- Vérification de la complétude du DPI -->
+  <p><strong>Vérification de la complétude du DPI</strong></p>
+  <ul>
+    <li><input type="checkbox"> Données administratives complètes et validées</li>
+    <li><input type="checkbox"> Fiche d’identitovigilance intégrée et conforme</li>
+    <li><input type="checkbox"> Traçabilité complète des soins infirmiers (observations, actes, évaluations)</li>
+    <li><input type="checkbox"> Traçabilité des actes médicaux (consultation, examens, prescriptions)</li>
+    <li><input type="checkbox"> Résultats des examens complémentaires intégrés</li>
+    <li><input type="checkbox"> Compte rendu médical et synthèse de sortie présents</li>
+    <li><input type="checkbox"> Consentements et informations patient intégrés</li>
+    <li><input type="checkbox"> Codages administratifs et médicaux saisis (CIM-10, GEMSA, CCMU...)</li>
+  </ul>
+  <label style="display:block; margin-top:10px; font-weight:bold; color:#007BFF; font-size:13px;\">
+    <input type="checkbox"
+      onclick="
+        const fieldset = this.closest('fieldset');
+        const checkboxes = fieldset.querySelectorAll('input[type=checkbox]');
+        const alertDiv = fieldset.querySelectorAll('.alert')[4];
+        const confirmMsg = this.checked ? '⚠️ Confirmez-vous vouloir cocher toute cette section ?' : 'Souhaitez-vous décocher tous les éléments de cette section ?';
+        if (confirm(confirmMsg)) {
+          checkboxes.forEach(cb => cb.checked = this.checked);
+          alertDiv?.dispatchEvent(new Event('change'));
+        } else {
+          this.checked = !this.checked;
+        }
+      
+    > ✅ Marquer cette section comme conforme
+  </label>
+  <textarea name="dpiCompletenessComment" placeholder="Commentaires sur la complétude du dossier dans le DPI..." style="width:100%; height:60px;\"></textarea>
+  <div class="alert" style="margin-top:10px; padding:5px; border-radius:5px; font-weight:bold;\"></div>
+
+<!-- SECTION LONGUE - FILIÈRE URGENCES -->
+<fieldset id="sectionLongue" style="display:none;">
+  <legend style="color:#007BFF; font-size:13pt;">Filière Longue (Urgences)</legend>
+
+  <!-- Évaluation et triage IOA ou IDE -->
+  <p><strong>Évaluation et triage IOA ou IDE (filière longue)</strong></p>
+  <ul>
+    <li><input type="checkbox"> Vérification des informations d'identitovigilance</li>
+    <li><input type="checkbox"> Intégration au dossier des ordonnances en cours</li>
+    <li><input type="checkbox"> Intégration au dossier des antécédents médicaux</li>
+    <li><input type="checkbox"> Motif d’admission documenté</li>
+    <li><input type="checkbox"> Contexte clinique précisé</li>
+    <li><input type="checkbox"> Symptômes rapportés tracés</li>
+    <li><input type="checkbox"> Évaluation clinique initiale réalisée</li>
+    <li><input type="checkbox"> Score FRENCH ou triage formel documenté</li>
+    <li><input type="checkbox"> Priorisation validée par l'IDE ou l'IOA</li>
+    <li><input type="checkbox"> Contexte et motif d'admission réévalués</li>
+    <li><input type="checkbox"> Risques identifiés et tracés (douleur, confusion, chute...)</li>
+    <li><input type="checkbox"> Plan de surveillance adapté mis en œuvre</li>
+    <li><input type="checkbox"> Information du patient assurée et tracée</li>
+  </ul>
+  <label style="display:block; margin-top:10px; font-weight:bold; color:#007BFF; font-size:13px;">
+    <input type="checkbox" onclick="
+      const fieldset = this.closest('fieldset');
+      const checkboxes = fieldset.querySelectorAll('input[type=checkbox]');
+      const alertDiv = fieldset.querySelectorAll('.alert')[0];
+      const confirmMsg = this.checked
+        ? '⚠️ Confirmez-vous vouloir cocher toute cette section ?'
+        : 'Souhaitez-vous décocher tous les éléments de cette section ?';
+      if (confirm(confirmMsg)) {
+        checkboxes.forEach(cb => cb.checked = this.checked);
+        alertDiv?.dispatchEvent(new Event('change'));
+      } else {
+        this.checked = !this.checked;
+      }
+    ">
+    ✅ Marquer cette section comme conforme
+  </label>
+  <textarea name="longTriageComment" placeholder="Commentaires ou anomalies lors du triage (filière longue)..." style="width:100%; height:60px;"></textarea>
+  <div class="alert" style="margin-top:10px; padding:5px; border-radius:5px; font-weight:bold;"></div>
+
+ <!-- ===== SECTION PRISE EN CHARGE DE LA DOULEUR ===== -->
+<fieldset id="ancrage-douleur">
+  <legend style="color:#007BFF; font-size:13pt; font-weight:bold;">Prise en charge de la douleur</legend>
+  <ul>
+    <li><input type="checkbox"> Évaluation initiale de la douleur (EVA, EN, hétéro-évaluation)</li>
+    <li><input type="checkbox"> Traçabilité de l’intensité de la douleur dans le dossier</li>
+    <li><input type="checkbox"> Prescription antalgique adaptée au niveau de douleur</li>
+    <li><input type="checkbox"> Administration du traitement antalgique réalisée</li>
+    <li><input type="checkbox"> Réévaluation de l’efficacité du traitement réalisée</li>
+    <li><input type="checkbox"> Réévaluation tracée dans le dossier</li>
+    <li><input type="checkbox"> Adaptation du traitement si nécessaire</li>
+  </ul>
+
+  <label style="display:block; margin-top:10px; font-weight:bold; color:#007BFF; font-size:13px;">
+    <input type="checkbox" onclick="
+      const fieldset = this.closest('fieldset');
+      const checkboxes = fieldset.querySelectorAll('ul input[type=checkbox]');
+      const alertDiv = fieldset.querySelector('.alert');
+      const confirmMsg = this.checked
+        ? '⚠️ Confirmez-vous vouloir cocher toute cette section ?'
+        : 'Souhaitez-vous décocher tous les éléments de cette section ?';
+      if (confirm(confirmMsg)) {
+        checkboxes.forEach(cb => cb.checked = this.checked);
+        alertDiv?.dispatchEvent(new Event('change'));
+      } else {
+        this.checked = !this.checked;
+      }
+    ">
+    ✅ Marquer cette section comme conforme
+  </label>
+
+  <textarea name="douleurComment" placeholder="Commentaires ou anomalies de PEC de la douleur..." style="width:100%; height:60px;"></textarea>
+
+  <div class="alert" style="margin-top:10px; padding:5px; border-radius:5px; font-weight:bold;"></div>
+</fieldset>
+
+<!-- ===== SECTION ÉVALUATION ET TRIAGE IOA ou IDE ===== -->
+<label for="medecinReferent" style="display:block; margin-bottom:5px; font-weight:bold;">Nom du médecin référent :</label>
+<input type="text" id="medecinReferent" name="medecinReferent" style="width:100%; margin-bottom:15px;">
+<fieldset id="ancrage-triage">
+  <legend style="color:#007BFF; font-size:13pt; font-weight:bold;">Évaluation et triage IOA ou IDE</legend>
+  <ul>
+    <li><input type="checkbox"> Vérification des informations d'identitovigilance</li>
+    <li><input type="checkbox"> Intégration au dossier des ordonnances en cours</li>
+    <li><input type="checkbox"> Intégration au dossier des antécédents médicaux</li>
+    <li><input type="checkbox"> Motif d’admission documenté</li>
+    <li><input type="checkbox"> Contexte clinique précisé</li>
+    <li><input type="checkbox"> Symptômes rapportés tracés</li>
+    <li><input type="checkbox"> Évaluation clinique initiale réalisée</li>
+    <li><input type="checkbox"> Score FRENCH ou triage formel documenté</li>
+    <li><input type="checkbox"> Priorisation validée par l'IDE ou l'IOA</li>
+    <li><input type="checkbox"> Contexte et motif d'admission réévalués</li>
+    <li><input type="checkbox"> Risques identifiés et tracés (douleur, confusion, chute...)</li>
+    <li><input type="checkbox"> Plan de surveillance adapté mis en œuvre</li>
+    <li><input type="checkbox"> Information du patient assurée et tracée</li>
+  </ul>
+
+  <label style="display:block; margin-top:10px; font-weight:bold; color:#007BFF; font-size:13px;">
+    <input type="checkbox" onclick="
+      const fieldset = this.closest('fieldset');
+      const checkboxes = fieldset.querySelectorAll('ul input[type=checkbox]');
+      const alertDiv = fieldset.querySelector('.alert');
+      const confirmMsg = this.checked
+        ? '⚠️ Confirmez-vous vouloir cocher toute cette section ?'
+        : 'Souhaitez-vous décocher tous les éléments de cette section ?';
+      if (confirm(confirmMsg)) {
+        checkboxes.forEach(cb => cb.checked = this.checked);
+        alertDiv?.dispatchEvent(new Event('change'));
+      } else {
+        this.checked = !this.checked;
+      }
+    ">
+    ✅ Marquer cette section comme conforme
+  </label>
+
+  <textarea name="triageComment" placeholder="Commentaires ou anomalies lors du triage..." style="width:100%; height:60px;"></textarea>
+
+  <div class="alert" style="margin-top:10px; padding:5px; border-radius:5px; font-weight:bold;"></div>
+
+   <!-- Message spécifique à la filière courte si hospitalisation ou transfert -->
+   <div id="alerteFiliereCourte" style="display:none; margin-top:15px; padding:10px; background-color:#fff3cd; border:1px solid #ffeeba; color:#856404; border-radius:5px; font-weight:bold;">
+    ⚠️ Le patient est orienté vers une hospitalisation ou un transfert. Veuillez basculer en <strong>filière longue</strong> pour activer les sections correspondantes.
+  </div>
+
+  <!-- Documents à remettre à la sortie (si retour à domicile) -->
+  <div id="documentsSortieCourte" style="margin-top:15px;">
+    <p><strong>📄 Documents à remettre au patient (retour à domicile) :</strong></p>
+    <ul>
+      <li><input type="checkbox"> Lettre de sortie</li>
+      <li><input type="checkbox"> Ordonnances</li>
+      <li><input type="checkbox"> Consignes de surveillance</li>
+      <li><input type="checkbox"> RDV post-urgence si nécessaire</li>
+      <li><input type="checkbox"> Arrêt de travail (si indiqué)</li>
+    </ul>
+    <p><strong>💻 Vérification du dossier informatique :</strong></p>
+    <ul>
+      <li><input type="checkbox"> Codage GEMSA / CIM-10 saisi</li>
+      <li><input type="checkbox"> Compte rendu médical intégré</li>
+      <li><input type="checkbox"> Fiche de liaison IDE enregistrée</li>
+    </ul>
+  </div>
+<script>
+document.addEventListener("DOMContentLoaded", function () {
+  const radios = document.querySelectorAll("input[name='orientationLongue']");
+    radios.forEach(radio => {
+      radio.addEventListener("change", () => {
+        const uhcdSection = document.getElementById("sectionUHCD");
+        const hospiSection = document.getElementById("sectionHospi");
+        const transfertSection = document.getElementById("sectionTransfert");
+        const geriatrieSection = document.getElementById("sectionGeriatrie");
+
+        if (uhcdSection) uhcdSection.style.display = "none";
+        if (hospiSection) hospiSection.style.display = "none";
+        if (transfertSection) transfertSection.style.display = "none";
+        if (geriatrieSection) geriatrieSection.style.display = "none";
+
+        const uhcdSoins = document.getElementById("uhcdSoinsSurveillance");
+        const uhcdAdmin = document.getElementById("uhcdAdministratif");
+        const uhcdMed = document.getElementById("uhcdMedical");
+        const uhcdSortie = document.getElementById("uhcdSortie");
+
+        if (uhcdSoins) uhcdSoins.style.display = "none";
+        if (uhcdAdmin) uhcdAdmin.style.display = "none";
+        if (uhcdMed) uhcdMed.style.display = "none";
+        if (uhcdSortie) uhcdSortie.style.display = "none";
+
+        if (radio.checked) {
+          if (radio.value === "uhcd" && uhcdSection) {
+            uhcdSection.style.display = "block";
+            if (uhcdSoins) uhcdSoins.style.display = "block";
+            if (uhcdAdmin) uhcdAdmin.style.display = "block";
+            if (uhcdMed) uhcdMed.style.display = "block";
+            if (uhcdSortie) uhcdSortie.style.display = "block";
+            uhcdSection.style.display = "block";
+          } else if (radio.value === "medchir" && hospiSection) {
+            hospiSection.style.display = "block";
+          } else if (radio.value === "transfert" && transfertSection) {
+            transfertSection.style.display = "block";
+          } else if (radio.value === "geriatrie" && geriatrieSection) {
+            geriatrieSection.style.display = "block";
+          }
+        }
+      });
+    });
+  });
+</script>
+
+<script>
+  document.addEventListener("DOMContentLoaded", function () {
+    const radios = document.querySelectorAll("input[name='orientationUHCD']");
+    radios.forEach(radio => {
+      radio.addEventListener("change", () => {
+        const soinsSection = document.getElementById("uhcdSoinsSurveillance");
+        const administratifSection = document.getElementById("uhcdAdministratif");
+        const medicalSection = document.getElementById("uhcdMedical");
+        const sortieSection = document.getElementById("uhcdSortie");
+
+        soinsSection.style.display = "none";
+        administratifSection.style.display = "none";
+        medicalSection.style.display = "none";
+        sortieSection.style.display = "none";
+
+        if (radio.value === "uhcd") {
+          soinsSection.style.display = "block";
+          administratifSection.style.display = "block";
+          medicalSection.style.display = "block";
+          sortieSection.style.display = "block";
+        }
+      });
+    });
+  });
+</script>
+
+</fieldset>
+
+<!-- ===== SOUS-SECTIONS DYNAMIQUES UHCD ===== -->
+<fieldset id="uhcdSoinsSurveillance" style="display:none;">
+  <legend style="color:#007BFF; font-weight:bold;">Soins et surveillance IDE en UHCD</legend>
+  <ul>
+    <li><input type="checkbox"> Surveillance des constantes toutes les 6 heures</li>
+    <li><input type="checkbox"> Surveillance douleur, confusion, risque de chute</li>
+    <li><input type="checkbox"> Traçabilité des paramètres dans le DPI</li>
+    <li><input type="checkbox"> Réévaluation régulière et adaptation du traitement</li>
+  </ul>
+</fieldset>
+
+<fieldset id="uhcdAdministratif" style="display:none;">
+  <legend style="color:#007BFF; font-weight:bold;">Dossier administratif UHCD</legend>
+  <ul>
+    <li><input type="checkbox"> Création du mouvement dans le logiciel administratif</li>
+    <li><input type="checkbox"> Mise à jour du dossier administratif dans le DPI</li>
+    <li><input type="checkbox"> Accord écrit du patient pour l’hébergement</li>
+    <li><input type="checkbox"> Identification de la personne de confiance</li>
+  </ul>
+</fieldset>
+
+<fieldset id="uhcdMedical" style="display:none;">
+  <legend style="color:#007BFF; font-weight:bold;">Prise en charge médicale en UHCD</legend>
+  <ul>
+    <li><input type="checkbox"> Réévaluation médicale quotidienne</li>
+    <li><input type="checkbox"> Prescription du traitement personnel</li>
+    <li><input type="checkbox"> Prescription de traitements symptomatiques</li>
+    <li><input type="checkbox"> Protocoles "si besoin" validés</li>
+    <li><input type="checkbox"> Prescriptions d'examens complémentaires</li>
+    <li><input type="checkbox"> Suivi des résultats biologiques et d’imagerie</li>
+  </ul>
+</fieldset>
+
+<fieldset id="uhcdSortie" style="display:none;">
+  <legend style="color:#007BFF; font-weight:bold;">Sortie depuis l’UHCD</legend>
+  <ul>
+    <li><input type="radio" name="sortieUHCD" value="domicile"> Retour à domicile (documents de sortie à remettre)</li>
+    <li><input type="radio" name="sortieUHCD" value="hospitalisation"> Hospitalisation (médecine, chirurgie, gériatrie)</li>
+    <li><input type="radio" name="sortieUHCD" value="transfert"> Transfert vers autre structure (réa, spécialité, etc.)</li>
+  </ul>
+</fieldset>
+
+<!-- ===== SECTION HOSPITALISATION EN UHCD ===== -->
+<fieldset id="sectionUHCD" style="display:none;">
+  <legend style="color:#007BFF; font-size:13pt; font-weight:bold;">Hospitalisation en UHCD</legend>
+  <ul>
+    <li><input type="checkbox"> Création du mouvement en UHCD</li>
+    <li><input type="checkbox"> Soins et surveillance infirmière</li>
+    <li><input type="checkbox"> Mise en place des surveillances spécifiques</li>
+    <li><input type="checkbox"> Traçabilité des actes et évaluations dans le DPI</li>
+  </ul>
+</fieldset>
+
+<!-- ===== SECTION HOSPITALISATION MÉDECINE / CHIRURGIE ===== -->
+<fieldset id="sectionHospi" style="display:none;">
+  <legend style="color:#007BFF; font-size:13pt; font-weight:bold;">Hospitalisation Médecine / Chirurgie</legend>
+  <ul>
+    <li><input type="checkbox"> Lettre de liaison</li>
+    <li><input type="checkbox"> Prescription complète sur 24h</li>
+    <li><input type="checkbox"> Accord du patient pour chambre et prestations</li>
+    <li><input type="checkbox"> Intégration DPI des documents nécessaires</li>
+  </ul>
+</fieldset>
+
+<!-- ===== SECTION HOSPITALISATION GÉRIATRIE GCS ===== -->
+<fieldset id="sectionGeriatrie" style="display:none;">
+  <legend style="color:#007BFF; font-size:13pt; font-weight:bold;">Hospitalisation Gériatrie – GCS</legend>
+  <ul>
+    <li><input type="checkbox"> Demande de transfert validée</li>
+    <li><input type="checkbox"> Fiche de liaison gériatrique complétée</li>
+    <li><input type="checkbox"> Prescription adaptée à la personne âgée</li>
+    <li><input type="checkbox"> Évaluation gériatrique initiale tracée</li>
+  </ul>
+</fieldset>
+
+<!-- ===== SECTION TRANSFERT VERS AUTRE STRUCTURE ===== -->
+<fieldset id="sectionTransfert" style="display:none;">
+  <legend style="color:#007BFF; font-size:13pt; font-weight:bold;">Transfert vers autre structure</legend>
+  <ul>
+    <li><input type="checkbox"> Lettre de liaison / Fiche de transfert</li>
+    <li><input type="checkbox"> Contact et accord avec la structure d’accueil</li>
+    <li><input type="checkbox"> Organisation du transport médicalisé</li>
+    <li><input type="checkbox"> Consentement du patient recueilli</li>
+  </ul>
+</fieldset>
+
+<!-- ===== SECTION FILIÈRE LONGUE ===== -->
+<fieldset id="ancrage-filiere-longue" style="display:none;">
+  <legend style="color:#007BFF; font-size:13pt; font-weight:bold;">Filière Longue – Urgences</legend>
+
+  <p><strong>Évaluation médicale prolongée et prise en charge élargie</strong></p>
+  <ul>
+    <li><input type="checkbox"> Réévaluation clinique régulière</li>
+    <li><input type="checkbox"> Prescription des traitements personnels du patient</li>
+    <li><input type="checkbox"> Mise en place des traitements symptomatiques</li>
+    <li><input type="checkbox"> Prescription en "si besoin" selon protocole</li>
+    <li><input type="checkbox"> Examens complémentaires prescrits (biologie, imagerie, etc.)</li>
+    <li><input type="checkbox"> Surveillance infirmière continue mise en œuvre</li>
+    <li><input type="checkbox"> Coordination avec assistante sociale si besoin</li>
+    <li><input type="checkbox"> Mise à jour du dossier médical et DPI</li>
+  </ul>
+
+  <p><strong>Préparation à l’orientation</strong></p>
+  <ul>
+    <li><input type="radio" name="orientationLongue" value="uhcd"> Hospitalisation en UHCD</li>
+    <li><input type="radio" name="orientationLongue" value="medchir"> Hospitalisation Médecine / Chirurgie / GCS</li>
+    <li><input type="radio" name="orientationLongue" value="transfert"> Transfert vers autre établissement</li>
+    <li><input type="radio" name="orientationLongue" value="retour"> Retour à domicile</li>
+    <li><input type="radio" name="orientationLongue" value="geriatrie"> Hospitalisation Gériatrie GCS</li>
+  </ul>
+
+  <div id="docFiliereLongue" style="margin-top:15px;">
+    <p><strong>📄 Documents et vérifications à effectuer :</strong></p>
+    <ul>
+      <li><input type="checkbox"> Lettre de liaison médicale</li>
+      <li><input type="checkbox"> Prescription sur 24h y compris traitements personnels</li>
+      <li><input type="checkbox"> Accord du patient pour hospitalisation</li>
+      <li><input type="checkbox"> Accord du médecin référent</li>
+      <li><input type="checkbox"> Fiche d’orientation renseignée dans le DPI</li>
+      <li><input type="checkbox"> Codage et complétude dossier (CIM-10, GEMSA, CCMU)</li>
+    </ul>
+  </div>
+
+  <textarea name="commentairesFiliereLongue" placeholder="Commentaires ou éléments spécifiques à la filière longue..." style="width:100%; height:60px;"></textarea>
+</fieldset>
+
+
+<!-- ===== SOUS-SECTIONS DYNAMIQUES UHCD ===== -->
+<fieldset id="uhcdSoinsSurveillance" style="display:none;">
+  <legend style="color:#007BFF; font-weight:bold;">Soins et surveillance IDE en UHCD</legend>
+  <ul>
+    <li><input type="checkbox"> Surveillance des constantes toutes les 6 heures</li>
+    <li><input type="checkbox"> Surveillance douleur, confusion, risque de chute</li>
+    <li><input type="checkbox"> Traçabilité des paramètres dans le DPI</li>
+    <li><input type="checkbox"> Réévaluation régulière et adaptation du traitement</li>
+  </ul>
+</fieldset>
+
+<fieldset id="uhcdAdministratif" style="display:none;">
+  <legend style="color:#007BFF; font-weight:bold;">Dossier administratif UHCD</legend>
+  <ul>
+    <li><input type="checkbox"> Création du mouvement dans le logiciel administratif</li>
+    <li><input type="checkbox"> Mise à jour du dossier administratif dans le DPI</li>
+    <li><input type="checkbox"> Accord écrit du patient pour l’hébergement</li>
+    <li><input type="checkbox"> Identification de la personne de confiance</li>
+  </ul>
+</fieldset>
+
+<fieldset id="uhcdMedical" style="display:none;">
+  <legend style="color:#007BFF; font-weight:bold;">Prise en charge médicale en UHCD</legend>
+  <ul>
+    <li><input type="checkbox"> Réévaluation médicale quotidienne</li>
+    <li><input type="checkbox"> Prescription du traitement personnel</li>
+    <li><input type="checkbox"> Prescription de traitements symptomatiques</li>
+    <li><input type="checkbox"> Protocoles "si besoin" validés</li>
+    <li><input type="checkbox"> Prescriptions d'examens complémentaires</li>
+    <li><input type="checkbox"> Suivi des résultats biologiques et d’imagerie</li>
+  </ul>
+</fieldset>
+
+<fieldset id="uhcdSortie" style="display:none;">
+  <legend style="color:#007BFF; font-weight:bold;">Sortie depuis l’UHCD</legend>
+  <ul>
+    <li><input type="radio" name="sortieUHCD" value="domicile"> Retour à domicile (documents de sortie à remettre)</li>
+    <li><input type="radio" name="sortieUHCD" value="hospitalisation"> Hospitalisation (médecine, chirurgie, gériatrie)</li>
+    <li><input type="radio" name="sortieUHCD" value="transfert"> Transfert vers autre structure (réa, spécialité, etc.)</li>
+  </ul>
+</fieldset>
+
+<!-- ===== SECTION HOSPITALISATION EN UHCD ===== -->
+<fieldset id="sectionUHCD" style="display:none;">
+  <legend style="color:#007BFF; font-size:13pt; font-weight:bold;">Hospitalisation en UHCD</legend>
+  <ul>
+    <li><input type="checkbox"> Création du mouvement en UHCD</li>
+    <li><input type="checkbox"> Soins et surveillance infirmière</li>
+    <li><input type="checkbox"> Mise en place des surveillances spécifiques</li>
+    <li><input type="checkbox"> Traçabilité des actes et évaluations dans le DPI</li>
+  </ul>
+</fieldset>
+
+<!-- ===== SECTION HOSPITALISATION MÉDECINE / CHIRURGIE ===== -->
+<fieldset id="sectionHospi" style="display:none;">
+  <legend style="color:#007BFF; font-size:13pt; font-weight:bold;">Hospitalisation Médecine / Chirurgie</legend>
+  <ul>
+    <li><input type="checkbox"> Lettre de liaison</li>
+    <li><input type="checkbox"> Prescription complète sur 24h</li>
+    <li><input type="checkbox"> Accord du patient pour chambre et prestations</li>
+    <li><input type="checkbox"> Intégration DPI des documents nécessaires</li>
+  </ul>
+</fieldset>
+
+<!-- ===== SECTION HOSPITALISATION GÉRIATRIE GCS ===== -->
+<fieldset id="sectionGeriatrie" style="display:none;">
+  <legend style="color:#007BFF; font-size:13pt; font-weight:bold;">Hospitalisation Gériatrie – GCS</legend>
+  <ul>
+    <li><input type="checkbox"> Demande de transfert validée</li>
+    <li><input type="checkbox"> Fiche de liaison gériatrique complétée</li>
+    <li><input type="checkbox"> Prescription adaptée à la personne âgée</li>
+    <li><input type="checkbox"> Évaluation gériatrique initiale tracée</li>
+  </ul>
+</fieldset>
+
+<!-- ===== SECTION TRANSFERT VERS AUTRE STRUCTURE ===== -->
+<fieldset id="sectionTransfert" style="display:none;">
+  <legend style="color:#007BFF; font-size:13pt; font-weight:bold;">Transfert vers autre structure</legend>
+  <ul>
+    <li><input type="checkbox"> Lettre de liaison / Fiche de transfert</li>
+    <li><input type="checkbox"> Contact et accord avec la structure d’accueil</li>
+    <li><input type="checkbox"> Organisation du transport médicalisé</li>
+    <li><input type="checkbox"> Consentement du patient recueilli</li>
+  </ul>
+  <div class="alert"></div>
+</fieldset>
+
+<!-- ===== SECTION FILIÈRE LONGUE ===== -->
+<fieldset id="ancrage-filiere-longue" style="display:none;">
+  <legend style="color:#007BFF; font-size:13pt; font-weight:bold;">Filière Longue – Urgences</legend>
+
+  <p><strong>Évaluation médicale prolongée et prise en charge élargie</strong></p>
+  <ul>
+    <li><input type="checkbox"> Réévaluation clinique régulière</li>
+    <li><input type="checkbox"> Prescription des traitements personnels du patient</li>
+    <li><input type="checkbox"> Mise en place des traitements symptomatiques</li>
+    <li><input type="checkbox"> Prescription en "si besoin" selon protocole</li>
+    <li><input type="checkbox"> Examens complémentaires prescrits (biologie, imagerie, etc.)</li>
+    <li><input type="checkbox"> Surveillance infirmière continue mise en œuvre</li>
+    <li><input type="checkbox"> Coordination avec assistante sociale si besoin</li>
+    <li><input type="checkbox"> Mise à jour du dossier médical et DPI</li>
+  </ul>
+
+  <p><strong>Préparation à l’orientation</strong></p>
+  <ul>
+    <li><input type="radio" name="orientationLongue" value="uhcd"> Hospitalisation en UHCD</li>
+    <li><input type="radio" name="orientationLongue" value="medchir"> Hospitalisation Médecine / Chirurgie / GCS</li>
+    <li><input type="radio" name="orientationLongue" value="transfert"> Transfert vers autre établissement</li>
+    <li><input type="radio" name="orientationLongue" value="retour"> Retour à domicile</li>
+    <li><input type="radio" name="orientationLongue" value="geriatrie"> Hospitalisation Gériatrie GCS</li>
+  </ul>
+
+  <div id="docFiliereLongue" style="margin-top:15px;">
+    <p><strong>📄 Documents et vérifications à effectuer :</strong></p>
+    <ul>
+      <li><input type="checkbox"> Lettre de liaison médicale</li>
+      <li><input type="checkbox"> Prescription sur 24h y compris traitements personnels</li>
+      <li><input type="checkbox"> Accord du patient pour hospitalisation</li>
+      <li><input type="checkbox"> Accord du médecin référent</li>
+      <li><input type="checkbox"> Fiche d’orientation renseignée dans le DPI</li>
+      <li><input type="checkbox"> Codage et complétude dossier (CIM-10, GEMSA, CCMU)</li>
+    </ul>
+  </div>
+
+  <textarea name="commentairesFiliereLongue" placeholder="Commentaires ou éléments spécifiques à la filière longue..." style="width:100%; height:60px;"></textarea>
+</fieldset>
+
+<!-- Score global + section résumé -->
+<fieldset>
+  <legend style="color:#007BFF; font-size:13pt;">Résumé de conformité global</legend>
+  <div id="globalConformityAlert"
+       style="margin:10px 0; padding:10px; border-radius:5px; font-weight:bold; text-align:center; border:1px solid #ccc; background:#f9f9f9;">
+    En attente...
+  </div>
+</fieldset>
+
+<!-- Signature & Boutons -->
+<fieldset>
+  <legend style="color:#007BFF; font-size:13pt;">Signature du professionnel</legend>
+  <label>Nom : <input type="text" style="width:200px;"></label><br>
+  <button onclick="window.print()" style="margin-top:10px; font-weight:bold;">🖨️ Imprimer / PDF</button>
+  <button onclick="if(confirm('Confirmez-vous vouloir réinitialiser le formulaire ?')) location.reload();"
+          style="margin-top:10px; font-weight:bold; background:#f44336; color:white;">
+    ♻️ Réinitialiser
+  </button>
+</fieldset>
+
+<!-- Sous-sections bloc, palliatifs, médecine, chirurgie, ambulatoire, etc. -->
+<fieldset id="sousSectionBloc" style="display:none;">
+  <legend>Spécialité chirurgicale – Bloc opératoire</legend>
+  <label><input type="radio" name="blocSpecialite" value="orthopedie"> Orthopédie</label><br>
+  <!-- ... -->
+</fieldset>
+
+<fieldset id="sousSectionPalliatif" style="display:none;">
+  <legend>Parcours soins palliatifs</legend>
+  <ul>
+    <li><input type="checkbox"> Évaluation de la douleur</li>
+    <li><input type="checkbox"> Respect des directives anticipées</li>
+  </ul>
+</fieldset>
+
+<fieldset id="sousSectionMedecine" style="display:none;">
+  <legend>Spécialité – Médecine</legend>
+  <label><input type="radio" name="medecineSpecialite" value="oncologie"> Oncologie</label><br>
+  <label><input type="radio" name="medecineSpecialite" value="gastro"> Gastro-entérologie</label><br>
+</fieldset>
+
+<!-- etc. chirurgie, ambulatoire... -->
+
+</body>
+</html>
+
